@@ -20,6 +20,9 @@ async function sha256File(filePath: string): Promise<string> {
   });
 }
 
+// 保存したWebPのパスを集める
+const savedPaths: string[] = [];
+
 async function convertFolderToWebp(dir: string, quality = 80) {
   const entries = await fs.readdir(dir, { withFileTypes: true });
   await Promise.all(entries.map(async entry => {
@@ -32,32 +35,42 @@ async function convertFolderToWebp(dir: string, quality = 80) {
 
       try {
         const hash = await sha256File(fullPath);
+        const relativeDir = path.relative(process.cwd(), dir);
         const outName = `${hash}.webp`;
         const outPath = path.join(dir, outName);
 
-        // 保存済みチェック
         try {
           await fs.access(outPath);
-          console.log(`🔍 スキップ済み: ${outName}`);
+          console.log(`🔍 Skip existing: ${outPath}`);
           return;
-        } catch {
-          // 存在しなければ処理続行
-        }
+        } catch {/* not exist */}
 
         const info = await sharp(fullPath)
           .webp({ quality })
           .toFile(outPath);
         console.log(`✅ ${fullPath} → ${outPath} (${info.size} bytes)`);
+
+        // JSON に追加（相対パス）
+        const jsonPath = path.join(relativeDir, outName).replace(/\\/g, '/');
+        savedPaths.push(jsonPath);
+
       } catch (err) {
-        console.error(`❌ 処理エラー ${fullPath}:`, err);
+        console.error(`❌ Error processing ${fullPath}:`, err);
       }
     }
   }));
 }
 
+async function main() {
+  const root = path.resolve('./photos');
+  await convertFolderToWebp(root, 80);
+
+  // paths.json に書き出し
+  const json = JSON.stringify({ imagePaths: savedPaths }, null, 2);
+  await fs.writeFile('paths.json', json);
+  console.log('📄 paths.json を書き出したよ！');
+}
+
 if (require.main === module) {
-  const dir = path.resolve('./photos');
-  convertFolderToWebp(dir, 80)
-    .then(() => console.log('🎉 全変換完了'))
-    .catch(err => console.error('💥 全体エラー:', err));
+  main().catch(err => console.error('💥 全体エラー:', err));
 }
