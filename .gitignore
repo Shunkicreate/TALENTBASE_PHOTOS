@@ -1,0 +1,9 @@
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.bmp
+*.tiff
+*.svg
+dist/
+node_modules/
